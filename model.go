@@ -8,6 +8,12 @@ import (
 	"time"
 )
 
+const (
+	DEFAULT_TEXT_COLOR = lg.Color("#FDFFFC")
+	TYPED_TEXT_COLOR   = lg.Color("#4CB944")
+	CURSOR_TEXT_COLOR  = lg.Color("#FFA62B")
+)
+
 type CliTypingGameModel struct {
 	TargetString   string
 	CurrentString  string
@@ -34,11 +40,17 @@ func (m CliTypingGameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.CurrentIndex == len(m.TargetString) {
 			m.EndTimestamp = time.Now().UnixMilli()
 		}
-		switch msg.String() {
-		case string(m.TargetString[m.CurrentIndex]):
-			m.CurrentString += string(m.TargetString[m.CurrentIndex])
-			m.CurrentIndex++
-		case "ctrl+c":
+		// is playing
+		is_playing := m.CurrentIndex < len(m.TargetString)
+		if is_playing {
+			switch msg.String() {
+			case string(m.TargetString[m.CurrentIndex]):
+				m.CurrentString += string(m.TargetString[m.CurrentIndex])
+				m.CurrentIndex++
+			case "ctrl+c":
+				return m, tea.Quit
+			}
+		} else {
 			return m, tea.Quit
 		}
 	case tickMsg:
@@ -65,6 +77,9 @@ func (m CliTypingGameModel) View() string {
 		return m.ViewEnded()
 	}
 
+	optimal_width := 50
+	width := int(math.Min(float64(m.term_width), float64(optimal_width)))
+
 	out := lg.JoinVertical(
 		lg.Left,
 		m.GetCurrentString(),
@@ -72,23 +87,21 @@ func (m CliTypingGameModel) View() string {
 		m.GetTimeString(),
 	)
 
-	optimal_width := 50
-	width := math.Min(float64(m.term_width), float64(optimal_width))
-
-	out = lg.NewStyle().Width(int(width)).Render(out)
+	out = lg.NewStyle().Width(width).Render(out)
 	return lg.Place(m.term_width, m.term_height, lg.Center, lg.Center, out)
 }
 
 func (m CliTypingGameModel) GetCurrentString() string {
 	s := []string{}
-	currentStringStyle := lg.NewStyle().Underline(false).Foreground(lg.Color("#ffffff"))
-	targetStringStyle := lg.NewStyle().Underline(false).Foreground(lg.Color("#ff0033"))
+	currentStringStyle := lg.NewStyle().Underline(false).Foreground(DEFAULT_TEXT_COLOR)
+	targetStringStyle := lg.NewStyle().Underline(false).Foreground(TYPED_TEXT_COLOR)
+	nextCharStyle := lg.NewStyle().Underline(false).Foreground(CURSOR_TEXT_COLOR)
 
 	for i, c := range m.TargetString {
 		if i < m.CurrentIndex {
 			s = append(s, targetStringStyle.Render(string(c)))
 		} else if i == m.CurrentIndex {
-			s = append(s, currentStringStyle.UnsetUnderline().Underline(true).Render(string(c)))
+			s = append(s, nextCharStyle.Render(string(c)))
 		} else {
 			s = append(s, currentStringStyle.Render(string(c)))
 		}
@@ -102,14 +115,16 @@ func (m CliTypingGameModel) GetTimeString() string {
 	}
 	currentTime := time.Now().UnixMilli()
 	timeTaken := float64(currentTime-m.StartTimestamp) / 1000
-	return fmt.Sprintf("%.2f Seconds", timeTaken)
+	out := fmt.Sprintf("%.2f Seconds", timeTaken)
+	return lg.NewStyle().Foreground(DEFAULT_TEXT_COLOR).Render(out)
 }
 
 func (m CliTypingGameModel) GetWpmString() string {
 	currentTime := time.Now().UnixMilli()
 	timeTaken := float64(currentTime-m.StartTimestamp) / 1000
 	wpm := float64(m.CurrentIndex) / timeTaken * 60 / 5
-	return fmt.Sprintf("%.2f WPM", wpm)
+	out := fmt.Sprintf("%.2f WPM", wpm)
+	return lg.NewStyle().Foreground(DEFAULT_TEXT_COLOR).Render(out)
 }
 
 func (m CliTypingGameModel) HasStarted() bool {
@@ -123,10 +138,10 @@ func (m CliTypingGameModel) HasEnded() bool {
 func (m CliTypingGameModel) ViewEnded() string {
 	out := lg.JoinVertical(
 		lg.Left,
-		lg.NewStyle().Foreground(lg.Color("#ffffff")).Render("Game Over!"),
+		lg.NewStyle().Foreground(DEFAULT_TEXT_COLOR).Render("Game Over!"),
 		"",
-		lg.NewStyle().Foreground(lg.Color("#ffffff")).Render(m.GetTimeString()),
-		lg.NewStyle().Foreground(lg.Color("#ffffff")).Render(m.GetWpmString()),
+		m.GetTimeString(),
+		m.GetWpmString(),
 	)
 	return lg.Place(m.term_width, m.term_height, lg.Center, lg.Center, out)
 }

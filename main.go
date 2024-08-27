@@ -1,14 +1,22 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"typingtest/api"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/term"
-	"typingtest/api"
 )
 
-func GetRandomTarget() string {
-	quote, err := api.GetRandomQuote()
+var minLengthArg = flag.Int("min", 80, "Minimum length of the quote")
+var maxLengthArg = flag.Int("max", -1, "Maximum length of the quote")
+
+func GetRandomTarget(min, max int) string {
+	quote, err := api.GetRandomQuote(api.ApiArguments{
+		MaxLength: max,
+		MinLength: min,
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -16,12 +24,14 @@ func GetRandomTarget() string {
 }
 
 func main() {
+	flag.Parse()
+
 	w, h, err := term.GetSize(0)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Getting random quote...")
-	random_target := GetRandomTarget()
+
+	random_target := GetRandomTarget(*minLengthArg, *maxLengthArg)
 
 	model := CliTypingGameModel{
 		TargetString:   random_target,
@@ -35,8 +45,15 @@ func main() {
 
 	p := tea.NewProgram(&model, tea.WithAltScreen())
 
-	_, err = p.Run()
+	m, err := p.Run()
+
 	if err != nil {
-		panic(err)
+		fmt.Printf("Error: %v\n", err)
+		return
 	}
+
+	finished_model := m.(CliTypingGameModel)
+
+	fmt.Printf("WPM: %s\n", finished_model.GetWpmString())
+	fmt.Printf("Time: %s\n", finished_model.GetTimeString())
 }
